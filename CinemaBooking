@@ -1,0 +1,176 @@
+package database;
+
+import java.sql.*;
+import java.util.Scanner;
+
+public class CinemaBooking {
+
+    public static void main(String[] args) {
+
+        Scanner sc = new Scanner(System.in);
+
+        try {
+            Connection con = DriverManager.getConnection(
+                "jdbc:mysql://localhost:3306/cinema_db",
+                "root",
+                ""
+            );
+
+            while (true) {
+
+                System.out.println("\n=== CINEMA TICKET BOOKING SYSTEM ===");
+                System.out.println("1. Add Movie");
+                System.out.println("2. View Movies");
+                System.out.println("3. Book Ticket");
+                System.out.println("4. View Bookings");
+                System.out.println("5. Cancel Booking");
+                System.out.println("6. Exit");
+                System.out.print("Enter Choice: ");
+
+                int choice = sc.nextInt();
+
+                // 1. Add Movie -------------------------------------
+                if (choice == 1) {
+                    System.out.print("Enter Movie Name: ");
+                    String mname = sc.next();
+                    System.out.print("Enter Available Seats: ");
+                    int seats = sc.nextInt();
+
+                    String sql = "INSERT INTO movies(movie_name, available_seats) VALUES (?, ?)";
+                    PreparedStatement ps = con.prepareStatement(sql);
+                    ps.setString(1, mname);
+                    ps.setInt(2, seats);
+                    ps.executeUpdate();
+
+                    System.out.println("Movie Added Successfully!");
+                }
+
+                // 2. View Movies -----------------------------------
+                else if (choice == 2) {
+                    String sql = "SELECT * FROM movies";
+                    Statement st = con.createStatement();
+                    ResultSet rs = st.executeQuery(sql);
+
+                    System.out.println("\n--- MOVIE LIST ---");
+                    while (rs.next()) {
+                        System.out.println(
+                            rs.getInt("movie_id") + " | " +
+                            rs.getString("movie_name") + " | Seats: " +
+                            rs.getInt("available_seats")
+                        );
+                    }
+                }
+
+                // 3. Book Ticket -----------------------------------
+                else if (choice == 3) {
+                    System.out.print("Enter Movie ID: ");
+                    int mid = sc.nextInt();
+
+                    System.out.print("Enter Your Name: ");
+                    String cname = sc.next();
+
+                    System.out.print("Seats to Book: ");
+                    int seats = sc.nextInt();
+
+                    // check availability
+                    String check = "SELECT available_seats FROM movies WHERE movie_id=?";
+                    PreparedStatement ps1 = con.prepareStatement(check);
+                    ps1.setInt(1, mid);
+                    ResultSet rs = ps1.executeQuery();
+
+                    if (rs.next()) {
+                        int available = rs.getInt("available_seats");
+
+                        if (seats > available) {
+                            System.out.println("Not Enough Seats Available!");
+                        } else {
+                            // insert booking
+                            String sql = "INSERT INTO bookings(movie_id, customer_name, seats_booked) VALUES (?, ?, ?)";
+                            PreparedStatement ps2 = con.prepareStatement(sql);
+                            ps2.setInt(1, mid);
+                            ps2.setString(2, cname);
+                            ps2.setInt(3, seats);
+                            ps2.executeUpdate();
+
+                            // update seats in movie table
+                            String update = "UPDATE movies SET available_seats=? WHERE movie_id=?";
+                            PreparedStatement ps3 = con.prepareStatement(update);
+                            ps3.setInt(1, available - seats);
+                            ps3.setInt(2, mid);
+                            ps3.executeUpdate();
+
+                            System.out.println("Ticket Booked Successfully!");
+                        }
+                    } else {
+                        System.out.println("Movie ID Not Found!");
+                    }
+                }
+
+                // 4. View Bookings ---------------------------------
+                else if (choice == 4) {
+                    String sql = "SELECT b.booking_id, m.movie_name, b.customer_name, b.seats_booked " +
+                                 "FROM bookings b JOIN movies m ON b.movie_id=m.movie_id";
+                    Statement st = con.createStatement();
+                    ResultSet rs = st.executeQuery(sql);
+
+                    System.out.println("\n--- BOOKINGS ---");
+                    while (rs.next()) {
+                        System.out.println(
+                            "Booking ID: " + rs.getInt("booking_id") +
+                            " | Movie: " + rs.getString("movie_name") +
+                            " | Name: " + rs.getString("customer_name") +
+                            " | Seats: " + rs.getInt("seats_booked")
+                        );
+                    }
+                }
+
+                // 5. Cancel Booking --------------------------------
+                else if (choice == 5) {
+                    System.out.print("Enter Booking ID: ");
+                    int bid = sc.nextInt();
+
+                    // get booking details
+                    String sql = "SELECT * FROM bookings WHERE booking_id=?";
+                    PreparedStatement ps = con.prepareStatement(sql);
+                    ps.setInt(1, bid);
+                    ResultSet rs = ps.executeQuery();
+
+                    if (rs.next()) {
+                        int movieID = rs.getInt("movie_id");
+                        int seatsBooked = rs.getInt("seats_booked");
+
+                        // delete booking
+                        String del = "DELETE FROM bookings WHERE booking_id=?";
+                        PreparedStatement ps2 = con.prepareStatement(del);
+                        ps2.setInt(1, bid);
+                        ps2.executeUpdate();
+
+                        // add seats back
+                        String update = "UPDATE movies SET available_seats = available_seats + ? WHERE movie_id=?";
+                        PreparedStatement ps3 = con.prepareStatement(update);
+                        ps3.setInt(1, seatsBooked);
+                        ps3.setInt(2, movieID);
+                        ps3.executeUpdate();
+
+                        System.out.println("Booking Cancelled!");
+                    } else {
+                        System.out.println("Booking ID Not Found!");
+                    }
+                }
+
+                // 6. Exit -----------------------------------------
+                else if (choice == 6) {
+                    System.out.println("Thank you! Exiting...");
+                    break;
+                }
+
+                else {
+                    System.out.println("Invalid Option! Try Again.");
+                }
+            }
+
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+    }
+}
